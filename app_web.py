@@ -352,7 +352,7 @@ if not st.session_state["autenticado"]:
 
 # --- INTERFAZ PRINCIPAL ---
 
-# Sidebar con branding SoftCourse y opciones solicitadas
+# Sidebar con branding SoftCourse y opciones
 with st.sidebar:
   st.markdown("### 🏢 SoftCourse")
   st.markdown(
@@ -440,10 +440,9 @@ if tipo_busq == "📋 Actas Ingresadas (Orden)":
   st.title("📋 Listado de Actas Ingresadas (Orden de Ingreso)")
   st.markdown(
       "Visualización en secuencia del orden en que fueron ingresadas las"
-      " actas (del 001 al 830)."
+      " actas."
   )
 
-  # Mapeo rápido de mesas con sus respectivos locales y distritos
   info_mesas_map = {}
   for local in datos_procesados:
     dist = local["Distrito"]
@@ -458,27 +457,21 @@ if tipo_busq == "📋 Actas Ingresadas (Orden)":
       extras = info_mesas_map.get(
           mesa_id, {"Colegio": "Desconocido", "Distrito": "Desconocido"}
       )
-      actas_ingresadas_lista.append(
-          (int(dig_val), mesa_id, info, extras)
-      )
+      actas_ingresadas_lista.append((int(dig_val), mesa_id, info, extras))
 
-  # Ordenar por el número de orden asignado
   actas_ingresadas_lista.sort(key=lambda x: x[0])
 
   if not actas_ingresadas_lista:
-    st.info(
-        "Aún no hay actas marcadas como 'Acta Ingresada' en el sistema."
-    )
+    st.info("Aún no hay actas marcadas como 'Acta Ingresada' en el sistema.")
   else:
     col_inf_1, col_inf_2 = st.columns([3, 1])
     with col_inf_1:
       st.markdown(
           f"**Total de actas ingresadas hasta el momento:**"
-          f" {len(actas_ingresadas_lista)} / 830"
+          f" {len(actas_ingresadas_lista)} / {len(cache_mesas)}"
       )
 
     with col_inf_2:
-      # Preparar DataFrame completo con TODOS los detalles actualizados de cada mesa
       data_export = []
       for orden_num, m_id, info_m, extras in actas_ingresadas_lista:
         data_export.append({
@@ -584,7 +577,7 @@ else:
             if ind_sino == "SI":
               mesas_filtradas.append(m)
           else:
-            if e_acta == est_acta_sel:
+            if e_acta == est_acta_sel and ind_sino != "SI":
               mesas_filtradas.append(m)
 
       if mesas_filtradas:
@@ -736,7 +729,7 @@ else:
             disabled=modo_solo_lectura,
             help=(
                 "Marca para asignar automáticamente orden correlativo del 001"
-                " al 830"
+                " en adelante"
             ),
         )
 
@@ -819,6 +812,7 @@ else:
             "ACTA CON MAS DE UNA OBSERVACION",
             "OTRAS OBSERVACIONES",
         ]
+
         t_obs_actual = d_prev.get("tipo_observacion", "NINGUNA")
         idx_t_obs = (
             tipos_obs_lista.index(t_obs_actual)
@@ -870,7 +864,9 @@ else:
               disabled=modo_solo_lectura,
           )
 
-      st.markdown("<div style='margin-top: 4px;'></div>", unsafe_allow_html=True)
+      st.markdown(
+          "<div style='margin-top: 4px;'></div>", unsafe_allow_html=True
+      )
 
       if modo_solo_lectura:
         st.info(
@@ -882,7 +878,11 @@ else:
           st.rerun()
       else:
         bloquear_guardado = False
-        if nuevo_est_mesa != "NO INSTALADA" and nuevo_est_acta == "OBSERVADA":
+        if (
+            nuevo_est_mesa != "NO INSTALADA"
+            and nuevo_est_acta == "OBSERVADA"
+            and indicador_sino == "NO"
+        ):
           eleccion_seleccionada = chk_prov or chk_dist
           tipo_obs_seleccionado = nuevo_tipo_obs != "NINGUNA"
 
@@ -915,9 +915,7 @@ else:
               val_acta_guardar = nuevo_est_acta
               try:
                 v_votos = int(electores_votaron)
-                t_electores = int(
-                    d_prev.get("total_electores", 0) or 0
-                )
+                t_electores = int(d_prev.get("total_electores", 0) or 0)
                 if v_votos < 0 or v_votos > t_electores:
                   st.error(f"⚠ Votos entre 0 y {t_electores}.")
                   st.stop()
@@ -925,7 +923,11 @@ else:
                 st.error("⚠ Número de electores inválido.")
                 st.stop()
 
-            if nuevo_est_mesa != "NO INSTALADA" and fecha_resolucion.strip():
+            if (
+                nuevo_est_mesa != "NO INSTALADA"
+                and fecha_resolucion.strip()
+                and indicador_sino == "SI"
+            ):
               try:
                 datetime.strptime(fecha_resolucion.strip(), "%d/%m/%Y")
               except ValueError:
@@ -943,7 +945,7 @@ else:
                     num_val = int(val_d)
                     if num_val > max_n:
                       max_n = num_val
-                nuevo_n = max_n + 1 if max_n < 830 else 830
+                nuevo_n = max_n + 1
                 nuevo_dig_val = f"{nuevo_n:03d}"
             else:
               nuevo_dig_val = ""
@@ -990,40 +992,53 @@ else:
 
       st.markdown("</div>", unsafe_allow_html=True)
 
-    else:
-      # --- CÁLCULO DE ELECTORES GLOBALES (n / x) ---
-      total_locales_encontrados = len(resultados_filtrados)
-      total_mesas_reales_global = sum(
-          local["total_mesas_real"] for local in resultados_filtrados
-      )
+  else:
+    # --- CÁLCULO DE MÉTRICAS GLOBALES ABSOLUTAS Y FILTRADAS ---
+    total_locales_encontrados = len(resultados_filtrados)
+    total_mesas_sistema = len(cache_mesas)
 
-      meses_instaladas_global = 0
-      normales_global = 0
-      observadas_global = 0
-      siniestradas_global = 0
-      extraviadas_global = 0
+    meses_instaladas_global = 0
+    normales_global = 0
+    observadas_global = 0
+    siniestradas_global = 0
+    extraviadas_global = 0
+    resueltas_global = 0
 
-      n_electores_global = 0
-      x_electores_global = 0
+    resueltas_obs_orig = 0
+    resueltas_sini_orig = 0
+    resueltas_ext_orig = 0
 
-      for local in resultados_filtrados:
-        for m in local["Mesas_Reales"]:
-          d_m = cache_mesas.get(m, {})
-          est_m = d_m.get("estado_mesa", "").upper()
-          est_a = d_m.get("estado_acta", "").upper()
+    n_electores_global = 0
+    x_electores_global = 0
 
-          try:
-            x_electores_global += int(d_m.get("total_electores", 0) or 0)
-          except ValueError:
-            pass
+    for local in resultados_filtrados:
+      for m in local["Mesas_Reales"]:
+        d_m = cache_mesas.get(m, {})
+        est_m = d_m.get("estado_mesa", "").upper()
+        est_a = d_m.get("estado_acta", "").upper()
+        ind_s = d_m.get("indicador_sino", "").upper()
 
-          try:
-            n_electores_global += int(d_m.get("electores_votaron", 0) or 0)
-          except ValueError:
-            pass
+        try:
+          x_electores_global += int(d_m.get("total_electores", 0) or 0)
+        except ValueError:
+          pass
 
-          if est_m in ["INSTALADA", "TARDÍA"]:
-            meses_instaladas_global += 1
+        try:
+          n_electores_global += int(d_m.get("electores_votaron", 0) or 0)
+        except ValueError:
+          pass
+
+        if est_m in ["INSTALADA", "TARDÍA"]:
+          meses_instaladas_global += 1
+          if ind_s == "SI":
+            resueltas_global += 1
+            if est_a == "OBSERVADA":
+              resueltas_obs_orig += 1
+            elif est_a == "SINIESTRADA":
+              resueltas_sini_orig += 1
+            elif est_a == "EXTRAVIADA":
+              resueltas_ext_orig += 1
+          else:
             if est_a == "NORMAL":
               normales_global += 1
             elif est_a == "OBSERVADA":
@@ -1033,194 +1048,265 @@ else:
             elif est_a == "EXTRAVIADA":
               extraviadas_global += 1
 
-      if codigo_activo and not buscando_por_mesa:
-        if st.button("⬅ Volver a la lista de locales"):
-          del st.session_state["local_codigo_activo"]
-          st.rerun()
+    if codigo_activo and not buscando_por_mesa:
+      if st.button("⬅ Volver a la lista de locales"):
+        del st.session_state["local_codigo_activo"]
+        st.rerun()
+
+    is_filtro_resuelta = (
+        tipo_busq == "Estado de Acta" and est_acta_sel == "RESUELTA"
+    )
+
+    if is_filtro_resuelta:
+      # Cálculo total absoluto del sistema para resueltas (para que muestre 830 mesas en vez de las filtradas)
+      total_electores_sistema = 0
+      votantes_sistema_resuelto = 0
+      total_mesas_sistema_count = len(cache_mesas)
+
+      resueltas_obs_orig = 0
+      resueltas_sini_orig = 0
+      resueltas_ext_orig = 0
+
+      for m_id, info_m in cache_mesas.items():
+        try:
+          total_electores_sistema += int(info_m.get("total_electores", 0) or 0)
+        except ValueError:
+          pass
+
+        ind_s = info_m.get("indicador_sino", "").upper()
+        est_a = info_m.get("estado_acta", "").upper()
+
+        if ind_s == "SI":
+          resueltas_global += 1
+          try:
+            votantes_sistema_resuelto += int(
+                info_m.get("electores_votaron", 0) or 0
+            )
+          except ValueError:
+            pass
+
+          if est_a == "OBSERVADA":
+            resueltas_obs_orig += 1
+          elif est_a == "SINIESTRADA":
+            resueltas_sini_orig += 1
+          elif est_a == "EXTRAVIADA":
+            resueltas_ext_orig += 1
 
       st.markdown(
           f"""
-        <div class="header-container">
-            <h3 class="header-title">📍 Locales Encontrados ({total_locales_encontrados})</h3>
-            <div style="display: flex; gap: 8px; align-items: center;">
-                <div class="header-badge-inst">
-                    👥 Electores Globales: <b>{n_electores_global:,} / {x_electores_global:,}</b>
-                </div>
-                <div class="header-badge-inst">
-                    🟢 Mesas Instaladas Globales: <b>{meses_instaladas_global} / {total_mesas_reales_global}</b>
-                </div>
-            </div>
-        </div>
-    """,
+          <div class="header-container">
+              <h3 class="header-title">📍 Locales Encontrados ({total_locales_encontrados})</h3>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                  <div class="header-badge-inst">
+                      👥 Electores Globales: <b>{votantes_sistema_resuelto:,} / {total_electores_sistema:,}</b>
+                  </div>
+                  <div class="header-badge-inst">
+                      🟢 Actas Resueltas: <b>{resueltas_global} / {total_mesas_sistema_count}</b>
+                  </div>
+              </div>
+          </div>
+      """,
           unsafe_allow_html=True,
       )
 
       st.markdown(
           f"""
-        <div class="metric-container-grid-4">
-            <div class="metric-card card-local-norm">📘 Normales: <b>{normales_global} / {meses_instaladas_global}</b></div>
-            <div class="metric-card card-local-obs">📊 Observadas: <b>{observadas_global} / {meses_instaladas_global}</b></div>
-            <div class="metric-card card-local-sini">🦹‍♂ Siniestradas: <b>{siniestradas_global} / {meses_instaladas_global}</b></div>
-            <div class="metric-card card-local-ext">❌ Extraviadas: <b>{extraviadas_global} / {meses_instaladas_global}</b></div>
-        </div>
-    """,
+          <div class="metric-container-grid-4">
+              <div class="metric-card card-local-obs">📊 Actas Observadas: <b>{resueltas_obs_orig} / {resueltas_global}</b></div>
+              <div class="metric-card card-local-sini">🦹‍♂ Actas Siniestradas: <b>{resueltas_sini_orig} / {resueltas_global}</b></div>
+              <div class="metric-card card-local-ext">❌ Actas Extraviadas: <b>{resueltas_ext_orig} / {resueltas_global}</b></div>
+              <div class="metric-card card-local-norm">📋 Total Resueltas: <b>{resueltas_global} / {total_mesas_sistema_count}</b></div>
+          </div>
+      """,
+          unsafe_allow_html=True,
+      )
+    else:
+      total_mesas_reales_global = sum(
+          local["total_mesas_real"] for local in resultados_filtrados
+      )
+      st.markdown(
+          f"""
+          <div class="header-container">
+              <h3 class="header-title">📍 Locales Encontrados ({total_locales_encontrados})</h3>
+              <div style="display: flex; gap: 8px; align-items: center;">
+                  <div class="header-badge-inst">
+                      👥 Electores Globales: <b>{n_electores_global:,} / {x_electores_global:,}</b>
+                  </div>
+                  <div class="header-badge-inst">
+                      🟢 Mesas Instaladas Globales: <b>{meses_instaladas_global} / {total_mesas_reales_global}</b>
+                  </div>
+              </div>
+          </div>
+      """,
           unsafe_allow_html=True,
       )
 
-      for local in resultados_filtrados:
-        codigo_local = local["Codigo"]
-        total_mesas_local_count = local["total_mesas_real"]
+      st.markdown(
+          f"""
+          <div class="metric-container-grid-4">
+              <div class="metric-card card-local-norm">📘 Normales: <b>{normales_global} / {meses_instaladas_global}</b></div>
+              <div class="metric-card card-local-obs">📊 Observadas: <b>{observadas_global} / {meses_instaladas_global}</b></div>
+              <div class="metric-card card-local-sini">🦹‍♂ Siniestradas: <b>{siniestradas_global} / {meses_instaladas_global}</b></div>
+              <div class="metric-card card-local-ext">❌ Extraviadas: <b>{extraviadas_global} / {meses_instaladas_global}</b></div>
+          </div>
+      """,
+          unsafe_allow_html=True,
+      )
 
-        n_electores_local = 0
-        x_electores_local = 0
-        for m in local["Mesas_Reales"]:
-          d_m = cache_mesas.get(m, {})
-          try:
-            x_electores_local += int(d_m.get("total_electores", 0) or 0)
-          except ValueError:
-            pass
-          try:
-            n_electores_local += int(d_m.get("electores_votaron", 0) or 0)
-          except ValueError:
-            pass
+    for local in resultados_filtrados:
+      codigo_local = local["Codigo"]
+      total_mesas_local_count = local["total_mesas_real"]
 
-        col_info, col_btn = st.columns([5, 1])
-        with col_info:
+      n_electores_local = 0
+      x_electores_local = 0
+      for m in local["Mesas_Reales"]:
+        d_m = cache_mesas.get(m, {})
+        try:
+          x_electores_local += int(d_m.get("total_electores", 0) or 0)
+        except ValueError:
+          pass
+        try:
+          n_electores_local += int(d_m.get("electores_votaron", 0) or 0)
+        except ValueError:
+          pass
+
+      col_info, col_btn = st.columns([5, 1])
+      with col_info:
+        st.markdown(
+            f"""
+              <div style="display: flex; align-items: center; background-color: #ffffff; padding: 6px 10px; border-radius: 6px; border: 1px solid #e0e0e0; margin-bottom: 4px;">
+                  <span style="font-size: 14px; margin-right: 6px;">🏫</span>
+                  <span class="badge-codigo">[{codigo_local}]</span>
+                  <span style="font-size: 13px; font-weight: 700; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{local['Colegio']} — DISTRITO: {local['Distrito']}</span>
+                  <span class="badge-mesas">({total_mesas_local_count} MESAS)</span>
+                  <span class="badge-electores">👥 Votantes: {n_electores_local:,} / {x_electores_local:,}</span>
+              </div>
+          """,
+            unsafe_allow_html=True,
+        )
+
+      with col_btn:
+        if codigo_activo == codigo_local and not buscando_por_mesa:
+          if st.button(
+              "Cerrar", key=f"cerrar_{codigo_local}", use_container_width=True
+          ):
+            del st.session_state["local_codigo_activo"]
+            st.rerun()
+        elif not buscando_por_mesa:
+          if st.button(
+              "Ver Mesas", key=f"abrir_{codigo_local}", use_container_width=True
+          ):
+            st.session_state["local_codigo_activo"] = codigo_local
+            st.rerun()
+
+      if codigo_activo == codigo_local:
+        if buscando_por_mesa and mesa_busq_input in local["Mesas_Reales"]:
+          m_obj = mesa_busq_input
+          d_m = cache_mesas.get(m_obj, {})
+          est_m = d_m.get("estado_mesa", "").upper()
+          est_a = d_m.get("estado_acta", "").upper()
+
+          inst_val_local = 1 if est_m in ["INSTALADA", "TARDÍA"] else 0
+          norm_m = 1 if (inst_val_local == 1 and est_a == "NORMAL") else 0
+          obs_m = 1 if (inst_val_local == 1 and est_a == "OBSERVADA") else 0
+          sini_m = (
+              1 if (inst_val_local == 1 and est_a == "SINIESTRADA") else 0
+          )
+          ext_m = 1 if (inst_val_local == 1 and est_a == "EXTRAVIADA") else 0
+
           st.markdown(
               f"""
-                <div style="display: flex; align-items: center; background-color: #ffffff; padding: 6px 10px; border-radius: 6px; border: 1px solid #e0e0e0; margin-bottom: 4px;">
-                    <span style="font-size: 14px; margin-right: 6px;">🏫</span>
-                    <span class="badge-codigo">[{codigo_local}]</span>
-                    <span style="font-size: 13px; font-weight: 700; color: #2c3e50; white-space: nowrap; overflow: hidden; text-overflow: ellipsis;">{local['Colegio']} — DISTRITO: {local['Distrito']}</span>
-                    <span class="badge-mesas">({total_mesas_local_count} MESAS)</span>
-                    <span class="badge-electores">👥 Votantes: {n_electores_local:,} / {x_electores_local:,}</span>
-                </div>
-            """,
+              <div class="metric-local-inst">🟢 Instaladas en Local: <b>{inst_val_local} / 1</b></div>
+              <div class="metric-container-local-grid-4">
+                  <div class="metric-local-card local-norm">📘 Normales: <b>{norm_m} / 1</b></div>
+                  <div class="metric-local-card local-obs">📊 Observadas: <b>{obs_m} / 1</b></div>
+                  <div class="metric-local-card local-sini">🦹‍♂ Siniestradas: <b>{sini_m} / 1</b></div>
+                  <div class="metric-local-card local-ext">❌ Extraviadas: <b>{ext_m} / 1</b></div>
+              </div>
+          """,
               unsafe_allow_html=True,
           )
+        else:
+          normales_local = (
+              instaladas_local
+          ) = (
+              observadas_local
+          ) = siniestradas_local = extraviadas_local = 0
 
-        with col_btn:
-          if codigo_activo == codigo_local and not buscando_por_mesa:
-            if st.button(
-                "Cerrar", key=f"cerrar_{codigo_local}", use_container_width=True
-            ):
-              del st.session_state["local_codigo_activo"]
-              st.rerun()
-          elif not buscando_por_mesa:
-            if st.button(
-                "Ver Mesas", key=f"abrir_{codigo_local}", use_container_width=True
-            ):
-              st.session_state["local_codigo_activo"] = codigo_local
-              st.rerun()
-
-        if codigo_activo == codigo_local:
-          if buscando_por_mesa and mesa_busq_input in local["Mesas_Reales"]:
-            m_obj = mesa_busq_input
-            d_m = cache_mesas.get(m_obj, {})
+          for m in local["Mesas_Reales"]:
+            d_m = cache_mesas.get(m, {})
             est_m = d_m.get("estado_mesa", "").upper()
             est_a = d_m.get("estado_acta", "").upper()
 
-            inst_val_local = 1 if est_m in ["INSTALADA", "TARDÍA"] else 0
-            norm_m = 1 if (inst_val_local == 1 and est_a == "NORMAL") else 0
-            obs_m = 1 if (inst_val_local == 1 and est_a == "OBSERVADA") else 0
-            sini_m = (
-                1 if (inst_val_local == 1 and est_a == "SINIESTRADA") else 0
-            )
-            ext_m = 1 if (inst_val_local == 1 and est_a == "EXTRAVIADA") else 0
+            if est_m in ["INSTALADA", "TARDÍA"]:
+              instaladas_local += 1
+              if est_a == "NORMAL":
+                normales_local += 1
+              elif est_a == "OBSERVADA":
+                observadas_local += 1
+              elif est_a == "SINIESTRADA":
+                siniestradas_local += 1
+              elif est_a == "EXTRAVIADA":
+                extraviadas_local += 1
 
-            st.markdown(
-                f"""
-                <div class="metric-local-inst">🟢 Instaladas en Local: <b>{inst_val_local} / 1</b></div>
-                <div class="metric-container-local-grid-4">
-                    <div class="metric-local-card local-norm">📘 Normales: <b>{norm_m} / 1</b></div>
-                    <div class="metric-local-card local-obs">📊 Observadas: <b>{obs_m} / 1</b></div>
-                    <div class="metric-local-card local-sini">🦹‍♂ Siniestradas: <b>{sini_m} / 1</b></div>
-                    <div class="metric-local-card local-ext">❌ Extraviadas: <b>{ext_m} / 1</b></div>
-                </div>
-            """,
-                unsafe_allow_html=True,
-            )
+          st.markdown(
+              f"""
+              <div class="metric-local-inst">🟢 Instaladas en Local: <b>{instaladas_local} / {total_mesas_local_count}</b></div>
+              <div class="metric-container-local-grid-4">
+                  <div class="metric-local-card local-norm">📘 Normales: <b>{normales_local} / {instaladas_local if instaladas_local > 0 else 1}</b></div>
+                  <div class="metric-local-card local-obs">📊 Observadas: <b>{observadas_local} / {instaladas_local if instaladas_local > 0 else 1}</b></div>
+                  <div class="metric-local-card local-sini">🦹‍♂ Siniestradas: <b>{siniestradas_local} / {instaladas_local if instaladas_local > 0 else 1}</b></div>
+                  <div class="metric-local-card local-ext">❌ Extraviadas: <b>{extraviadas_local} / {instaladas_local if instaladas_local > 0 else 1}</b></div>
+              </div>
+          """,
+              unsafe_allow_html=True,
+          )
+
+        st.markdown("#### 🗳 Mesas Electorales")
+
+        cols = st.columns(6)
+        for idx, mesa in enumerate(local["Mesas"]):
+          datos_m = cache_mesas.get(mesa, {})
+          est_acta = datos_m.get("estado_acta", "NORMAL").upper()
+          est_mesa = datos_m.get("estado_mesa", "INSTALADA").upper()
+
+          votos_mesa = datos_m.get("electores_votaron", "0")
+          total_el_mesa = datos_m.get("total_electores", "0")
+
+          prefix = "[T] " if est_mesa == "TARDÍA" else ""
+
+          bg, txt, brd = "#FFFFFF", "#31333F", "#d6d6d6"
+          if est_mesa == "NO INSTALADA":
+            bg, txt, brd = "#F5C6CB", "#721C24", "#F5C6CB"
+            label_estado = "NO INSTALADA"
+          elif est_acta in ["EXTRAVIADA", "SINIESTRADA"]:
+            bg, txt, brd = "#FFD8A8", "#D9480F", "#FFD8A8"
+            label_estado = est_acta
+          elif est_acta == "OBSERVADA":
+            bg, txt, brd = "#FFEEBA", "#856404", "#FFEEBA"
+            label_estado = est_acta
+          elif est_mesa == "TARDÍA":
+            bg, txt, brd = "#FFF3CD", "#856404", "#FFEEBA"
+            label_estado = est_acta if est_acta else "NORMAL"
           else:
-            normales_local = (
-                instaladas_local
-            ) = (
-                observadas_local
-            ) = siniestradas_local = extraviadas_local = 0
+            label_estado = est_acta
 
-            for m in local["Mesas_Reales"]:
-              d_m = cache_mesas.get(m, {})
-              est_m = d_m.get("estado_mesa", "").upper()
-              est_a = d_m.get("estado_acta", "").upper()
-
-              if est_m in ["INSTALADA", "TARDÍA"]:
-                instaladas_local += 1
-                if est_a == "NORMAL":
-                  normales_local += 1
-                elif est_a == "OBSERVADA":
-                  observadas_local += 1
-                elif est_a == "SINIESTRADA":
-                  siniestradas_local += 1
-                elif est_a == "EXTRAVIADA":
-                  extraviadas_local += 1
-
+          with cols[idx % 6]:
             st.markdown(
                 f"""
-                <div class="metric-local-inst">🟢 Instaladas en Local: <b>{instaladas_local} / {total_mesas_local_count}</b></div>
-                <div class="metric-container-local-grid-4">
-                    <div class="metric-local-card local-norm">📘 Normales: <b>{normales_local} / {instaladas_local if instaladas_local > 0 else 1}</b></div>
-                    <div class="metric-local-card local-obs">📊 Observadas: <b>{observadas_local} / {instaladas_local if instaladas_local > 0 else 1}</b></div>
-                    <div class="metric-local-card local-sini">🦹‍♂ Siniestradas: <b>{siniestradas_local} / {instaladas_local if instaladas_local > 0 else 1}</b></div>
-                    <div class="metric-local-card local-ext">❌ Extraviadas: <b>{extraviadas_local} / {instaladas_local if instaladas_local > 0 else 1}</b></div>
-                </div>
-            """,
+                      <div style="background-color: {bg}; color: {txt}; border: 1px solid {brd}; border-radius: 4px; padding: 4px 2px; text-align: center; font-weight: 600; font-size: 10px; margin-bottom: 2px;">
+                          {prefix}Mesa {mesa}<br>
+                          <span style="font-size: 7px; font-weight: normal;">{label_estado}</span><br>
+                          <span style="font-size: 8px; font-weight: bold; color: #1e7e34;">👤 {votos_mesa}/{total_el_mesa}</span>
+                      </div>
+                  """,
                 unsafe_allow_html=True,
             )
 
-          st.markdown("#### 🗳 Mesas Electorales")
-
-          cols = st.columns(6)
-          for idx, mesa in enumerate(local["Mesas"]):
-            datos_m = cache_mesas.get(mesa, {})
-            est_acta = datos_m.get("estado_acta", "NORMAL").upper()
-            est_mesa = datos_m.get("estado_mesa", "INSTALADA").upper()
-
-            votos_mesa = datos_m.get("electores_votaron", "0")
-            total_el_mesa = datos_m.get("total_electores", "0")
-
-            prefix = "[T] " if est_mesa == "TARDÍA" else ""
-
-            bg, txt, brd = "#FFFFFF", "#31333F", "#d6d6d6"
-            if est_mesa == "NO INSTALADA":
-              bg, txt, brd = "#F5C6CB", "#721C24", "#F5C6CB"
-              label_estado = "NO INSTALADA"
-            elif est_acta in ["EXTRAVIADA", "SINIESTRADA"]:
-              bg, txt, brd = "#FFD8A8", "#D9480F", "#FFD8A8"
-              label_estado = est_acta
-            elif est_acta == "OBSERVADA":
-              bg, txt, brd = "#FFEEBA", "#856404", "#FFEEBA"
-              label_estado = est_acta
-            elif est_mesa == "TARDÍA":
-              bg, txt, brd = "#FFF3CD", "#856404", "#FFEEBA"
-              label_estado = est_acta if est_acta else "NORMAL"
-            else:
-              label_estado = est_acta
-
-            with cols[idx % 6]:
-              st.markdown(
-                  f"""
-                        <div style="background-color: {bg}; color: {txt}; border: 1px solid {brd}; border-radius: 4px; padding: 4px 2px; text-align: center; font-weight: 600; font-size: 10px; margin-bottom: 2px;">
-                            {prefix}Mesa {mesa}<br>
-                            <span style="font-size: 7px; font-weight: normal;">{label_estado}</span><br>
-                            <span style="font-size: 8px; font-weight: bold; color: #1e7e34;">👤 {votos_mesa}/{total_el_mesa}</span>
-                        </div>
-                    """,
-                  unsafe_allow_html=True,
-              )
-
-              if st.button(
-                  "Editar",
-                  key=f"edit_m_{codigo_local}_{mesa}",
-                  use_container_width=True,
-              ):
-                st.session_state["mesa_activa"] = mesa
-                st.rerun()
+            if st.button(
+                "Editar",
+                key=f"edit_m_{codigo_local}_{mesa}",
+                use_container_width=True,
+            ):
+              st.session_state["mesa_activa"] = mesa
+              st.rerun()
