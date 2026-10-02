@@ -970,7 +970,7 @@ else:
 
       st.markdown("</div>", unsafe_allow_html=True)
 
-  else:
+    else:
     total_locales_encontrados = len(resultados_filtrados)
     total_mesas_sistema = len(cache_mesas)
 
