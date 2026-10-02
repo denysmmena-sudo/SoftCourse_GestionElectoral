@@ -622,7 +622,7 @@ else:
           or d_prev.get("tipo_observacion", "NINGUNA") != "NINGUNA"
       )
 
-      if st.button("⬅️️ Volver a las mesas"):
+      if st.button("⬅ Volver a las mesas"):
         del st.session_state["mesa_activa"]
         st.rerun()
 
