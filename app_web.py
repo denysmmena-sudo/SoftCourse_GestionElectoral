@@ -10,12 +10,10 @@ st.set_page_config(
     initial_sidebar_state="expanded",
 )
 
-# Estilos CSS optimizados
 st.markdown(
     """
     <style>
     .main { background-color: #E5ECEA; }
-
     .header-container {
         display: flex;
         justify-content: space-between;
@@ -41,14 +39,12 @@ st.markdown(
         color: #31333F;
         font-size: 11px;
     }
-
     .metric-container-grid-4 {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         gap: 4px;
         margin-bottom: 6px;
     }
-
     .metric-card {
         background-color: #f8f9fa;
         padding: 4px 6px;
@@ -58,12 +54,10 @@ st.markdown(
         box-shadow: 0 1px 3px rgba(0,0,0,0.05);
         font-size: 10px;
     }
-
     .card-local-norm { border-left: 3px solid #17a2b8; }
     .card-local-obs { border-left: 3px solid #ffc107; }
     .card-local-sini { border-left: 3px solid #fd7e14; }
     .card-local-ext { border-left: 3px solid #dc3545; }
-
     .metric-local-inst {
         background-color: #f1f8f5;
         padding: 4px 6px;
@@ -75,14 +69,12 @@ st.markdown(
         margin-bottom: 3px;
         display: inline-block;
     }
-
     .metric-container-local-grid-4 {
         display: grid;
         grid-template-columns: repeat(4, 1fr);
         gap: 4px;
         margin-bottom: 4px;
     }
-
     .metric-local-card {
         padding: 3px 4px;
         border-radius: 4px;
@@ -90,12 +82,10 @@ st.markdown(
         font-weight: 600;
         color: #31333F;
     }
-
     .local-norm { background-color: #f2f9fa; border-left: 2px solid #17a2b8; }
     .local-obs { background-color: #fefcf0; border-left: 2px solid #ffc107; }
     .local-sini { background-color: #fff8f3; border-left: 2px solid #fd7e14; }
     .local-ext { background-color: #fdf2f2; border-left: 2px solid #dc3545; }
-
     .badge-codigo {
         background-color: #e8f4fd;
         color: #0056b3;
@@ -125,7 +115,6 @@ st.markdown(
         margin-left: 6px;
         border-left: 3px solid #28a745;
     }
-
     .floating-window {
         background-color: #ffffff;
         border: 1px solid #dcdcdc;
@@ -135,7 +124,6 @@ st.markdown(
         margin-top: 4px;
         margin-bottom: 4px;
     }
-
     .stTextInput, .stSelectbox {
         margin-bottom: -12px !important;
     }
@@ -328,7 +316,6 @@ def resetear_todo_en_excel():
     return False
 
 
-# --- SISTEMA DE AUTENTICACIÓN ---
 if "autenticado" not in st.session_state:
   st.session_state["autenticado"] = False
 
@@ -350,9 +337,7 @@ if not st.session_state["autenticado"]:
         st.error("❌ Usuario o contraseña incorrectos.")
   st.stop()
 
-# --- INTERFAZ PRINCIPAL ---
 
-# Sidebar con branding SoftCourse y opciones
 with st.sidebar:
   st.markdown("### 🏢 SoftCourse")
   st.markdown(
@@ -422,7 +407,6 @@ with st.sidebar:
       ],
   )
 
-# Detectar cambio de filtro para limpiar estados activos
 if "tipo_busq_anterior" not in st.session_state:
   st.session_state["tipo_busq_anterior"] = tipo_busq
 
@@ -433,9 +417,7 @@ if st.session_state["tipo_busq_anterior"] != tipo_busq:
       del st.session_state[k]
   st.rerun()
 
-# =========================================================================
-# VISTA: LISTA DE ACTAS INGRESADAS (CON DETALLES COMPLETOS Y EXPORTACIÓN)
-# =========================================================================
+
 if tipo_busq == "📋 Actas Ingresadas (Orden)":
   st.title("📋 Listado de Actas Ingresadas (Orden de Ingreso)")
   st.markdown(
@@ -518,9 +500,6 @@ if tipo_busq == "📋 Actas Ingresadas (Orden)":
           f"📍 **Distrito:** {extras['Distrito']}"
       )
 
-# =========================================================================
-# VISTAS DE GESTIÓN Y BÚSQUEDA TRADICIONAL
-# =========================================================================
 else:
   st.title("🗳️ Sistema de Gestión de Locales y Mesas Electorales")
 
@@ -627,7 +606,6 @@ else:
     else:
       resultados_filtrados = resultados
 
-    # Si hay una mesa activa para editar o visualizar
     if "mesa_activa" in st.session_state:
       m_activa = st.session_state["mesa_activa"]
       d_prev = cache_mesas.get(m_activa, {})
@@ -644,7 +622,7 @@ else:
           or d_prev.get("tipo_observacion", "NINGUNA") != "NINGUNA"
       )
 
-      if st.button("⬅️ Volver a las mesas"):
+      if st.button("⬅️️ Volver a las mesas"):
         del st.session_state["mesa_activa"]
         st.rerun()
 
@@ -993,7 +971,6 @@ else:
       st.markdown("</div>", unsafe_allow_html=True)
 
   else:
-    # --- CÁLCULO DE MÉTRICAS GLOBALES ABSOLUTAS Y FILTRADAS ---
     total_locales_encontrados = len(resultados_filtrados)
     total_mesas_sistema = len(cache_mesas)
 
@@ -1058,7 +1035,6 @@ else:
     )
 
     if is_filtro_resuelta:
-      # Cálculo total absoluto del sistema para resueltas (para que muestre 830 mesas en vez de las filtradas)
       total_electores_sistema = 0
       votantes_sistema_resuelto = 0
       total_mesas_sistema_count = len(cache_mesas)
@@ -1066,6 +1042,7 @@ else:
       resueltas_obs_orig = 0
       resueltas_sini_orig = 0
       resueltas_ext_orig = 0
+      resueltas_global = 0
 
       for m_id, info_m in cache_mesas.items():
         try:
